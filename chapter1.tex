@@ -1,155 +1,226 @@
-\chapter{Formatting options}\label{ch:introduction}
+\chapter{Denoising EDMR spectra}\label{ch:edmr}
 
-The best way to view this document is in a split-view format, with the \texttt{.tex} file open and the corresponding portion of the \texttt{.pdf} output also visible.
+\section{Introduction and project aim}
+Electrically detected magnetic resonance (EDMR) measures changes in the current through a device when a magnetic resonance condition is reached. The resulting spectrum provides information about spin-dependent processes in the material. In practice, the measured response also depends on the sample and measurement circuit~\cite{leite2013}. The aim of this project is to investigate whether a neural network can recover an ideal spectrum from a noisy measurement without removing resonance features. The general idea is to create a synthetic dataset of clean spectra, add controlled noise and drift, train a model using this dataset, and compare its output with the known clean signal. The model is also compared with traditional denoising techniques. Synthetic data are useful at this stage because the correct answer is known for every spectrum, including spectra with overlapping peaks.
 
-\section{Equations and tables}\label{sec:equationexamples}
-
-You can write an equation without a label by using an asterisk:
-\begin{equation*}
-f(x) = (x+a)(x+b).
-\end{equation*}
-Alternatively, you can number and label your mathematical expressions:
-\begin{equation}\label{eq:Lagrangian_EM}
-\mathcal{L}_{\text{EM}} 
-  = \frac{1}{2} \biggl( \epsilon_{0} \left| \vect{E} \right|^{2} + \frac{1}{\mu_{0}} \left| \vect{B} \right|^{2} \biggr)
-   - \phi \varrho_{\text{free}} + \vect{A} \cdot \vect{J}_{\text{free}}
-   + \vect{E} \cdot \vect{P} + \vect{B} \cdot \vect{M}.
-% = \mathcal{L}_{\text{field}} + \mathcal{L}_{\text{int}}
-% = - \frac{1}{4 \mu_{0}} F^{\alpha \beta} F_{\alpha \beta} - A_{\alpha} J^{\alpha}.
-\end{equation}
-This way, we can later reference something we wrote earlier, like the electromagnetic Lagrangian density in non-relativistic vector notation shown in Equation (\ref{eq:Lagrangian_EM}).\\
-
-The equation environment allows you to construct a number of objects, such as arrays and algined sets of equations. For instance, we might want to write a general matrix:
+\section{Creating the synthetic dataset}\label{sec:data}
+\subsection{Clean spectra}
+First we start with an index grid $x=0,1,\ldots,1023$. An individual component has the shape
 \begin{equation}
-\vect{c} = 
-  \left(\begin{array}{c c c c c}
-    c_{11} & c_{12} & c_{13} & \ldots & c_{1n} \\
-    c_{21} & c_{22} & c_{23} & \ldots & c_{2n} \\
-    c_{31} & c_{32} & c_{33} & \ldots & c_{3n} \\
-    \vdots & \vdots & \vdots & \ddots & \vdots \\
-    c_{m1} & c_{m2} & c_{m3} & \ldots & c_{mn} \\
-  \end{array}\right).
+ f(x)=a(x-b)\exp\left[-c(x-b)^2\right],\qquad c>0.
+ \label{eq:peak}
 \end{equation}
-We might alternatively want to write a set of simultaneous equations. If future descriptions require for all of them to have unique labels, try using the `subequations' environment as well as the `eqnarray' environment.
-\begin{subequations}\label{eq:simulALL}
-\begin{eqnarray}
- 3x + 5y +  z &=& 5\\ \label{eq:simulB}
- 7x - 2y + 4z &=& 3\\
--6x + 3y + 2z &=& 1.
-\end{eqnarray}
-\end{subequations}
-This will allow you to talk about the set of simultaneous equations as a whole by referring the reader to Equation (\ref{eq:simulALL}), or else to a specific statement like Equation (\ref{eq:simulB}).\\
+This is proportional to the derivative of a Gaussian. It is a simple surrogate for an EDMR resonance feature. Each clean spectrum is the sum of $K$ resonance features,
+\begin{equation}
+ y(x)=\sum_{k=1}^{K} f_k(x),\qquad K\in\{1,2,3,4,5\}.
+\end{equation}
+The number of components is sampled uniformly. For each component, the width parameter $w$ is sampled uniformly between 0 and 40 sample intervals, and its individual lobe height $h$ is sampled uniformly between 0 and 1.5. For $w>0$, the parameters in Equation~\ref{eq:peak} are then set to
+\begin{equation}
+ a=\frac{h\exp(1/2)}{w},\qquad c=\frac{1}{2w^2}.
+\end{equation}
+An exactly zero-width component contributes zero on the sampled grid. The extrema occur at $x=b\pm w$, where the component has amplitudes $\pm h$. This makes the chosen width and height directly interpretable. The centre is drawn from $b\sim U(-40,1063)$, allowing peaks to extend beyond the scan boundaries. Overlap is allowed, so the extrema of the summed spectrum need not have the height of any individual component. Amplitudes are synthetic units, and $x$ has not been calibrated to magnetic field.
 
-Sometimes you'll want to derive a result, which in its clearest form requires more than one line of algebra. There are a few ways to accomplish this, and the best choice will depend on the task at hand and your personal taste. You can instruct the compiler \textit{not} to give a label to one or more of the lines as you go.
-\begin{eqnarray}\notag
-\lefteqn{R_{x} (\varepsilon) R_{y} (\varepsilon) - R_{y} (\varepsilon) R_{x} (\varepsilon)} \\ \notag
-& = &  \left( 1 - \frac{i J_{x} \varepsilon}{\hbar} - \frac{J_{x}^{2} \varepsilon^{2}}{2 \hbar^{2}} \right) 
- \left( 1 - \frac{i J_{y} \varepsilon}{\hbar} - \frac{J_{y}^{2} \varepsilon^{2}}{2 \hbar^{2}} \right) - 
- \left( 1 - \frac{i J_{y} \varepsilon}{\hbar} - \frac{J_{y}^{2} \varepsilon^{2}}{2 \hbar^{2}} \right)
- \left( 1 - \frac{i J_{x} \varepsilon}{\hbar} - \frac{J_{x}^{2} \varepsilon^{2}}{2 \hbar^{2}} \right) \\
-& = &  \left( 1 - \frac{i J_{z} \varepsilon^{2}}{\hbar} \right) - 1 + \mathcal{O} (\varepsilon^{3}). 
-\end{eqnarray}
+\subsection{Coloured-noise mixtures}
+Each spectrum contains a random mixture of zero to five distinct noise colours. The colours and their power law exponents are shown in Table~\ref{tab:colours}. White noise is sampled from a Gaussian distribution. For the other colours, the real Fourier transform of a white-noise sequence is multiplied by a frequency-dependent amplitude weight,
+\begin{equation}
+ A(f)\propto f^{-\beta/2},\qquad P(f)\propto f^{-\beta},\qquad f>0.
+\end{equation}
+This Fourier-weighting approach is described in the coloured-noise implementation example linked in the notebook~\cite{bob2021noise}. The zero-frequency coefficient is set to zero. After the inverse transform, the coloured component has its mean subtracted and is multiplied by a factor that gives it the sampled standard deviation.
 
-A table of data is sometimes necessary, for which there is a dedicated environment. An example of this is given in Table (\ref{tab:measuredconstants}) -- note that the counter for tables is separate from the counter for equations. If this isn't to your liking, you can change the enumeration style of one or both. (Google has plenty of suggestions).
-
-\begin{table}[h!]
-\begin{center}
-\begin{tabular}{ l l l c l}\hline
-\textbf{description}  & \textbf{} & \textbf{value} \\ \hline
-electronic charge & $e$ & $1.6021766 \times 10^{-19} \coulomb$ \\
-proton mass            & $m_{p}$ & $1.6726218 \times 10^{-27} \kilo\gram$ &  
- or & $938.27203 \mega\electronvolt\per c^{2}$ \\
-electron mass          & $m_{e}$ & $9.1093822 \times 10^{-31} \kilo\gram$ & or & $510.99891 \kilo\electronvolt\per c^{2}$ \\
-permittivity of vacuum & $\epsilon_{0}$ & $8.8541878 \times 10^{-12} \farad\per\meter $ \\
-permeability of vacuum & $\mu_{0}$         & $1.2566371 \times 10^{-6} \; \henry\per\meter$ & 
- or & $4 \pi \times 10^{-7} \henry\per\meter $ \\
-speed of light in vacuum & $c$               & $2.9979246 \times 10^{+8} \; \meter\per\second $ \\ 
-electrostatic constant   & $k_{e}$ & $8.9875518 \times 10^{+9} \; \meter\per\farad$ & 
- or & $1/4 \pi \epsilon_{0}$ \\
-Planck constant        & $h$ & $6.6260696 \times 10^{-34} \; \joule\cdot\second$ & 
- or & $4.1356675 \times 10^{-15} \electronvolt\cdot\second$ \\
-reduced Planck constant        & $\hbar$ & $1.0545717 \times 10^{-34} \; \joule\cdot\second$ & 
- or & $6.5821193 \times 10^{-16} \electronvolt\cdot\second$ \\
-\hline
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lrl}
+\toprule
+Colour & $\beta$ & Relative emphasis\\
+\midrule
+Brown & 2 & Low frequencies\\
+Pink & 1 & Low frequencies\\
+White & 0 & Flat power spectrum\\
+Blue & $-1$ & High frequencies\\
+Violet & $-2$ & High frequencies\\
+\bottomrule
 \end{tabular}
-\end{center}
-\caption{A table of measured constants.}
-\label{tab:measuredconstants}
+\caption{Noise colours implemented in the notebook. The mixture need not follow one power law.}
+\label{tab:colours}
 \end{table}
 
-\section{Pictures and figures}\label{sec:figures}
-Try to stick to a few data formats if possible. Vector and pdf data types are ideal, because they minimise the overall size of the document and you can zoom/print to any quality without pixelisation.\\
+The selected components receive independent strength settings from $U(0,1.0)$ and are summed. The resulting mixture is centred and rescaled to an overall standard deviation $\sigma\sim U(0,0.4)$. The relative mixture strengths and total noise level therefore vary separately. Zero selected components or zero total strength produce no random noise. Each sample has fixed noise once the dataset is created; the noise is not regenerated at every training epoch.
 
-You can write a program that returns data or a visual representation of it (graph, coloured array, surface plot etc.), and in the latter case, you can take the resulting image and copy to your `figures' folder (this keeps the internal address conventions neat and tidy) and link the document directly to your report, like so:\\
+\subsection{Baseline drift}
+A separate smooth baseline is added to 80\% of the spectra. The remaining 20\% have no added baseline drift. Let $u$ run uniformly from 0 to 1 across the scan, and let $t=2u-1$. The drift is
+\begin{equation}
+ d(x)=d_0+d_1t+d_2\left(t^2-\overline{t^2}\right)
+       +A\sin(2\pi\nu u+\phi).
+ \label{eq:drift}
+\end{equation}
+The offset and slope are each drawn uniformly between $-0.3$ and $0.3$. Curvature lies between $-0.2$ and $0.2$, the sinusoidal amplitude between 0 and 0.15, and the number of cycles between 0 and 1.5. Phase is uniform between 0 and $2\pi$. These are starting values for a controlled synthetic experiment. Their distributions have not been estimated from real measurements. The baseline is not centred after construction, because the offset is one of the unwanted contributions the model is intended to remove.
 
-\begin{figure}[h!]
-\begin{center}
-\includegraphics[width=0.40\linewidth]{figures/random_matrix.pdf}
-\end{center}
-\caption{A random square matrix, generated by a \texttt{Fortran} program.}
-\label{fig:random_matrix}
-\end{figure} 
+The corrupted input is
+\begin{equation}
+ z(x)=y(x)+n(x)+d(x),
+\end{equation}
+where $n$ is the coloured-noise mixture. The target remains $y(x)$, so both noise and baseline drift must be removed. Figure~\ref{fig:dataset} illustrates the generated contributions.
 
-
-If you need to provide a diagram of your own creation, there are several options available. You can feel free to choose whichever method your experience has endowed you with, or else represents the best compromise between effort spent and professional appearance of the final product. For instance, you could hand-draw your diagram, scan or take a photo of it, upload the resulting image to the correct directory, crop/filter it and add to your document, as shown in the LHS of Figure (\ref{fig:handcomp}).\\
-
-Alternatively, you could use some available computer software to get the job done. Here we will give you an example made in Inkscape, because it is an open-source package which is available for most operating systems. Here you will make your diagram (there are plenty of tutorials and examples available online), adjust the document borders to your satisfaction, save a vector-type copy for later editing purposes (for instance, `\texttt{diagram.svg}', and then also save a pdf version (`\texttt{diagram.pdf}'). It is the second file-type which you can link to your \LaTeX document with the usual features. The comparison between a hand-drawn and computer-rendered image is fairly stark -- see the RHS of Figure (\ref{fig:handcomp}).\\
-
-\begin{figure}[h!]
-\begin{center}
-\includegraphics[width=0.50\linewidth]{figures/dipole_hand.png}\hspace{1cm}
-\includegraphics[width=0.40\linewidth]{figures/dipole_vector.pdf}
-\end{center}
-\caption{A sketch of some electric field lines around an ideal electric dipole.}
-\label{fig:handcomp}
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\textwidth]{figures/dataset_example.pdf}
+\caption{A synthetic example generated from the current data functions with illustration seed 12345. The upper panel shows the clean target and corrupted input; the lower panel separates the coloured-noise mixture and baseline drift. This is a data-generation illustration, not a network reconstruction.}
+\label{fig:dataset}
 \end{figure}
 
-If you wish to take the last example further, try exploring some of Inkscape's features. It allows you to plot functions, write mathematical expressions (although this option does not always work) and vectorise/edit a surprisingly large assortment of existing images. If you would like your final document to look seamlessly consistent, you can even make diagrams with text and equations of the same formatting. (This involves writing everything in a dummy \LaTeX document, exporting and vectorising it online, importing that vector document into Inkscape, playing around with character size compared to final drawing size in the document, and then exporting that diagram as a pdf to be placed back into \LaTeX ... possibly not a worthwhile pursuit for the purposes of this subject.)
+\subsection{Normalisation and data splits}
+The input amplitude is normalised separately for each spectrum. The scale is the larger of the 95th percentile of the absolute corrupted input and one-tenth of its maximum absolute amplitude,
+\begin{equation}
+ s_i=\max\left[Q_{0.95}\!\left(|z_i|\right),\frac{\max_j|z_{ij}|}{10}\right],\qquad
+ \widetilde z_i=\frac{z_i}{s_i},\qquad \widetilde y_i=\frac{y_i}{s_i}.
+ \label{eq:normalisation}
+\end{equation}
+If the scale is zero, it is set to 1. A very narrow, noise-free peak can have a nearly zero 95th percentile even when its amplitude is large. The maximum-amplitude term prevents the normalised input from becoming extremely large and overflowing the training loss. The target uses the same input-derived scale; it is not independently normalised. This avoids requiring the unknown clean amplitude when processing a real measurement. No mean subtraction or clipping is applied to the spectrum. The scale is retained so that the predicted clean spectrum can be returned to the original amplitude units.
 
-\section{Computer code}\label{sec:code}
-\subsection{Code input/output}\label{subsec:codeinout}
+The code generates 50,000 training spectra with seed 10, 2,000 validation spectra with seed 20, and 2,000 test spectra with seed 30. Training batches are shuffled with a PyTorch generator seeded at 42. Validation and test batches are not shuffled. Validation data select the checkpoint and traditional-filter settings. The test set is used for the final evaluation and reconstruction plots.
 
-Talk about the language that you used, maybe referencing an integral in \cite{abramowitz1970} or a numerical algorithm in \cite{press1992} if you used \texttt{Fortran}.
+\section{The neural network}
+\subsection{Residual one-dimensional U-Net}
+The model is a one-dimensional adaptation of the encoder-decoder design introduced in U-Net~\cite{ronneberger2015}. The encoder reduces the spatial resolution to learn broader patterns, and the decoder restores the original resolution. At each decoder level, features from the matching encoder level are concatenated with the upsampled features. These skip connections provide a route for fine spectral information around the compressed representation.
 
-\subsection{Code written verbatim}\label{subsec:verbatim}
+The network predicts an additive unwanted contribution $r_\theta$, and returns
+\begin{equation}
+ \widehat{\widetilde y}=\widetilde z-r_\theta(\widetilde z).
+ \label{eq:residual}
+\end{equation}
+Predicting the unwanted contribution follows the residual-denoising idea used in DnCNN~\cite{zhang2017}. Here the residual includes both the random noise and the added drift. The model is supervised through the clean output in Equation~\ref{eq:residual}; the residual is not given a separate training loss. The final output layer has no activation, allowing the residual to have either sign. Its weights and bias are initially zero, so the untrained model starts as an identity mapping.
 
-This can be done with the \texttt{listings} and \texttt{verbatim} packages. You should modify the preamble document so that these packages correctly interpret the programming language that you used.
+Each convolution block contains two one-dimensional convolutions with kernel size 7 and padding 3. A ReLU follows each convolution. Average pooling halves the length between encoder levels. The decoder uses linear interpolation to the matching encoder length, a kernel-size-1 projection, concatenation with the skip features, and another convolution block. The channel counts are 16, 32, 64 and 128. The model has 352,177 trainable parameters. Figure~\ref{fig:architecture} shows the implemented structure for a 1,024-point input.
 
-\newpage
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.86\textwidth,height=0.76\textheight,keepaspectratio]{figures/unet_architecture.pdf}
+\caption{The implemented residual 1D U-Net. Dimensions are output channels $\times$ sequence length. Each blue block contains two Conv1D--ReLU pairs in series, with separate learned weights. Horizontal skip connections concatenate matching encoder features. The final kernel-size-1 convolution predicts noise and drift; subtraction and inverse scaling give the clean prediction in original amplitude units. AI assistance was used to construct this diagram.}
+\label{fig:architecture}
+\end{figure}
 
-\begin{lstlisting}
-      FUNCTION PINEWT(N)
-      IMPLICIT DOUBLE PRECISION (A-H,O-Z)
-C**********************************************************************C
-C     PINEWT EVALUATES THE INFINITE SERIES REPRESENTATION              C
-C     FOR PI AS A TRUNCATED SUM.                                       C
-C**********************************************************************C
-C
-C     ENSURE N IS A LEGAL VALUE
-      IF(N.LT.0) THEN
-        WRITE(6,*) 'In PINEWT: illegal value for N.',N
-        RETURN
-      ELSEIF(N.EQ.0) THEN
-        PINEWT = 2.0D0
-      ENDIF
-C
-C     INITIALISE SOME COUNTERS
-      TWOPOW = 1.0D0
-      FACKNM = 1.0D0
-      FACKDM = 1.0D0
-      PINEWT = TWOPOW*FACKNM*FACKNM/FACKDM
-C
-C     LOOP OVER SERIES ORDER N TIMES, ADDING EACH TERM TO TOTAL
-      DO I=1,N
-        TWOPOW = 2.0D0*TWOPOW
-        FACKNM = DFLOAT(I)*FACKNM
-        FACKDM = DFLOAT(2*I+1)*DFLOAT(2*I)*FACKDM
-        PINEWT = PINEWT + TWOPOW*FACKNM*FACKNM/FACKDM
-      ENDDO
-C
-C     DOUBLE THE RESULT (SEE WIKIPEDIA FORMULA)
-      PINEWT = 2.0D0*PINEWT
-C
-      RETURN
-      END
-\end{lstlisting}
+The final output in original units is obtained by multiplying by the saved input scale,
+\begin{equation}
+ \widehat y_i=s_i\widehat{\widetilde y}_i.
+\end{equation}
+The removed baseline is not added back. The inference helper accepts one raw spectrum or a batch and applies this same preprocessing and inverse scaling.
+
+\subsection{Loss, optimiser and early stopping}
+The training loss is the mean squared error (MSE) between the normalised prediction and target. For $M$ spectra with $N=1024$ points,
+\begin{equation}
+ \mathcal L=\frac{1}{MN}\sum_{i=1}^{M}\sum_{j=1}^{N}
+ \left(\widehat{\widetilde y}_{ij}-\widetilde y_{ij}\right)^2.
+ \label{eq:mse}
+\end{equation}
+A smaller value indicates a closer match to the known target, and zero would indicate a perfect pointwise reconstruction. Normalised MSE weights the original squared errors by $1/s_i^2$, so it is not the same quantity as original-unit MSE. The model is trained in PyTorch with Adam~\cite{kingma2015} at a learning rate of $10^{-3}$ and a batch size of 128. The maximum is 40 epochs. Early stopping is applied when validation MSE has not improved by more than $10^{-5}$ relative to the patience reference for six epochs. The best validation weights are saved independently of this threshold and restored at the end. Training uses gradient updates; validation uses evaluation mode without gradient tracking. The model was trained on Apple's MPS.
+
+\subsection{Traditional methods}
+The model is compared with a moving average~\cite{scipyuniform}, Gaussian smoothing~\cite{scipygaussian}, Savitzky-Golay smoothing~\cite{scipysavgol}, polynomial baseline correction, and polynomial baseline correction followed by Savitzky-Golay smoothing. The smoothing methods average nearby samples or fit a local polynomial. Baseline correction fits a polynomial across the noisy scan and subtracts it before any smoothing. It uses only the noisy input, not the clean target.
+
+Each method is tuned using normalised validation MSE. Moving-average and Savitzky-Golay windows are chosen from 5, 11, 21, 41, 81 and 121 samples. Gaussian widths are chosen from 1, 2, 4, 8, 16 and 24 samples. Savitzky-Golay polynomial orders are 2 or 3, and baseline degrees are 0, 1, 2 or 3. The settings in Table~\ref{tab:settings} are then fixed for test evaluation.
+
+\begin{table}[htbp]
+\centering
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Method & Selected settings\\
+\midrule
+Moving average & Window 11 samples\\
+Gaussian smoothing & Standard deviation 4 samples\\
+Savitzky-Golay & Window 21 samples; polynomial order 2\\
+Polynomial baseline & Degree 3\\
+Baseline + Savitzky-Golay & Baseline degree 3; window 21 samples; order 2\\
+\bottomrule
+\end{tabularx}
+\caption{Traditional-method settings selected using validation data.}
+\label{tab:settings}
+\end{table}
+
+\section{Current results}\label{sec:results}
+\subsection{Training history}
+The training run completed in 26 epochs and restored the epoch-23 checkpoint selected using the internal normalised validation loss. Its validation MSE in original amplitude units is 0.002015. The saved training history is shown in Figure~\ref{fig:loss}. Reported MSE values are in original amplitude units squared and are rounded to six decimal places.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lrr}
+\toprule
+Quantity & Training MSE & Validation MSE\\
+\midrule
+Epoch 1 & 0.018661 & 0.003940\\
+Restored epoch 23 & 0.001841 & 0.002015\\
+Final epoch 26 & 0.001769 & 0.002171\\
+\bottomrule
+\end{tabular}
+\caption{MSE in original amplitude units squared from the training run. Training error is accumulated during parameter updates; validation error is measured after each epoch.}
+\label{tab:training}
+\end{table}
+
+The error falls rapidly at the start of training and then improves more slowly. Between epochs 23 and 26, training loss decreases while validation loss fluctuates above its minimum. This is consistent with diminishing generalisation benefit and late overfitting. Early stopping limits further training when validation performance stops improving.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\textwidth]{figures/training_history.pdf}
+\caption{Training and validation MSE in original amplitude units squared versus epoch. The full training history is shown on a logarithmic axis. The dotted line marks the restored epoch-23 checkpoint.}
+\label{fig:loss}
+\end{figure}
+
+\subsection{Test evaluation and comparison with the corrupted input}
+The restored model is evaluated on the 2,000 unseen test spectra. Its test MSE is 0.002039 in original amplitude units squared, compared with 0.081426 for the unprocessed input. The input and prediction are compared with the same clean target after reversing the input normalisation. The test set does not select the checkpoint or filter settings, so this is an unseen test set evaluation.
+
+\subsection{Example reconstructions}
+Figure~\ref{fig:reconstruction} compares the network with polynomial baseline correction followed by Savitzky-Golay smoothing on the first three test spectra (indices 0, 1 and 2). These fixed examples were not selected for good results. Predictions have been de-normalised, so the curves can be compared in the original synthetic amplitude units. The predictions suppress substantial noise and drift. In the second and third examples, the predicted and clean curves are close over much of the resonance feature. The first example still shows amplitude differences, baseline wiggles and a false peak where the clean target is flat. These examples support qualitative reconstruction of the generated features, but also show why a low average MSE does not guarantee that every reconstructed peak is correct.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.94\textwidth,height=0.63\textheight,keepaspectratio]{figures/test_method_comparison.png}
+\caption{Comparison on test spectra 0, 1 and 2 from the notebook. Grey is the corrupted input, black is the clean target, blue is polynomial baseline correction followed by Savitzky-Golay smoothing, and red is the restored epoch-23 network output. All curves are in original synthetic amplitude units; traditional-filter settings were selected using validation data.}
+\label{fig:reconstruction}
+\end{figure}
+
+\subsection{Comparison with traditional techniques}
+Table~\ref{tab:comparison} compares every method on the same test spectra. Polynomial baseline correction followed by Savitzky-Golay smoothing is the strongest traditional method by MSE. Its original-unit MSE is 0.015177, compared with 0.002039 for the neural network. Figure~\ref{fig:comparison} shows the original-unit errors.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\textwidth}{@{}Xr@{}}
+\toprule
+Method & MSE\\
+\midrule
+Noisy input & 0.081426\\
+Moving average & 0.052340\\
+Gaussian smoothing & 0.051858\\
+Savitzky-Golay & 0.052813\\
+Polynomial baseline & 0.043791\\
+Baseline + Savitzky-Golay & 0.015177\\
+Neural network & 0.002039\\
+\bottomrule
+\end{tabularx}
+\caption{MSE in original amplitude units squared on the same 2,000 held-out test spectra. Values are rounded from the current notebook's saved comparison table.}
+\label{tab:comparison}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/traditional_comparison.pdf}
+\caption{Original-unit MSE on the same held-out test set. Lower values mean closer agreement with the clean target.}
+\label{fig:comparison}
+\end{figure}
+
+\section{Discussion and remaining validation}\label{sec:discussion}
+\subsection{Peak preservation and limitations of MSE}
+Pointwise MSE is a useful overall measure, but it does not directly report errors in peak position, lobe height or linewidth. Error over many near-baseline samples can dominate the average metric, while an isolated false peak can still be important. The next evaluation should quantify these feature errors. A peak-preserving loss or explicit line fitting may be worth investigating. An alternative model trained to predict the input feature parameters, such as feature position, lobe height and linewidth, is also worth investigating. These are continuous parameters, so this would be a regression task; discrete properties such as peak count could be treated as classification.
+
+\subsection{Comparison with traditional methods}
+The test comparison shows lower aggregate errors for the network than for the five traditional methods tested here. Baseline correction improves the traditional smoothing result substantially, because smoothing alone leaves slow drift. A baseline polynomial can also remove part of a broad or edge-truncated resonance. The comparison covers a finite search of filter settings on one synthetic distribution. It does not show that the network is better than every traditional method or that the same advantage will hold for measured spectra.
+
+The results are from one training run. Repeated training seeds would help assess their variability.
+
+\subsection{Application to measured EDMR spectra}
+For measured spectra, the input should be represented on a known, consistently ordered magnetic-field grid. The network currently operates on sample indices, so its notion of width is in points. A physical width $w_B$ corresponds to approximately $w_B/\Delta B$ sample intervals when the field spacing is $\Delta B$. Changing the number of points without accounting for the field spacing can therefore change the features seen by the model. A practical application should use compatible sampling or retrain the generator using representative physical widths. Merely resampling every scan to 1,024 points does not establish that the inputs match the training distribution.
+
+Amplitude normalisation is already included, but it does not correct all differences between synthetic and measured data. Real line shapes, measurement phase, resonances near scan boundaries, and the noise and drift distributions need to be represented. The generator now allows edge-truncated components, but uses only one derivative-Gaussian family with positive component coefficients, and does not simulate quadrature channels or signal-dependent shot noise. These assumptions limit the present scope. A useful real-data validation would compare individual noisy scans with an independently acquired higher-SNR reference, while checking that denoising does not alter fitted feature parameters. Reference acquisition and scan alignment also need to be considered. No measured EDMR spectrum has been processed or validated in the current notebook.
+
+\section{Conclusion}
+The current project implements an end-to-end synthetic denoising pipeline with variable peak counts and strengths, mixed coloured noise, smooth baseline drift, shared input-derived normalisation, and a residual 1D U-Net. The trained model restored an epoch-23 checkpoint after stopping at epoch 26. Its validation MSE is 0.002015 and its test MSE is 0.002039, both in original amplitude units squared. The example predictions show substantial removal of the generated corruption, with local reconstruction errors still visible in the first test spectrum.
+
+The experiment is a working synthetic proof of concept. On the held-out test set, the network has an MSE of 0.002039, compared with 0.015177 for polynomial baseline correction followed by Savitzky-Golay smoothing, the strongest traditional method tested. Future experiments are quantitative measures of peak preservation, a model that predicts peak parameters, repeated training seeds, and validation on real EDMR scans.

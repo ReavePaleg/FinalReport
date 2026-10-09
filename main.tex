@@ -1,33 +1,21 @@
-\documentclass[a4paper, 10.5pt, oneside]{report}
-%------------PREAMBLE
-\include{preamble}
-\usepackage{morefloats}
-%---------------------------
-                                          
+\documentclass[a4paper,11pt,oneside]{report}
+\input{preamble}
 \begin{document}
+\hypersetup{pageanchor=false}
+\input{cover}
+\pagenumbering{roman}
+\hypersetup{pageanchor=true}
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+Electrically detected magnetic resonance (EDMR) spectra contain random noise and a slowly varying background. Removing these is useful only if the positions, widths and amplitudes of the resonance features are preserved. This project creates a denoising model using synthetic spectra with known clean targets. Each spectrum contains one to five derivative-Gaussian peaks, a random mixture of coloured noise, and a possible smooth baseline drift. A residual one-dimensional U-Net predicts the unwanted noise and drift, which are subtracted from the input. Amplitude normalisation is shared with the clean target and reversed after inference.
 
-%---------------------------TITLE PAGE
-\include{cover}
-%---------------------------
-
-%---------------------------TABLE OF CONTENTS
+The experiment uses 50,000 training spectra, 2,000 validation spectra and 2,000 test spectra. The trained model achieves a validation mean squared error of 0.002015 and a test mean squared error of 0.002039, both in original amplitude units. The corresponding noisy test inputs have a mean squared error of 0.081426. The model is compared with five traditional methods whose settings are chosen using validation data. The strongest traditional method, polynomial baseline correction followed by Savitzky-Golay smoothing, has a test mean squared error of 0.015177. Sample reconstructions show substantial noise and baseline suppression, although some local peak-shape errors and a false peak remain. These results are for synthetic spectra; measured EDMR spectra still need to be evaluated.
 \tableofcontents
-%---------------------------
-
-%---------------------------MAIN BODY
+\clearpage
+\pagenumbering{arabic}
 \input{chapter1}
-%---------------------------
-
-%---------------------------APPENDICES
-\begin{appendices}
- \input{appendix1}
-\end{appendices}
-%---------------------------
-
-%---------------------------BIBLIOGRAPHY
+\clearpage
 \addcontentsline{toc}{chapter}{Bibliography}
 \bibliographystyle{abbrv}
 \bibliography{biblio}
-%---------------------------
-
 \end{document}
